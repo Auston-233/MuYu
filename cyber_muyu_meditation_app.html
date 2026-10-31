@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>赛里木鱼 - 在线功德禅堂</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        zen: {
+                            base: '#0f1115',
+                            card: 'rgba(26, 30, 39, 0.75)',
+                            gold: '#dfb260',
+                            wood: '#8c532b',
+                            neon: '#00ffcc',
+                            pink: '#ff7ebb'
+                        }
+                    },
+                    keyframes: {
+                        floatUp: {
+                            '0%': { opacity: '1', transform: 'translateY(0) scale(0.9)' },
+                            '50%': { opacity: '0.9', transform: 'translateY(-40px) scale(1.15)' },
+                            '100%': { opacity: '0', transform: 'translateY(-90px) scale(1)' }
+                        },
+                        malletHit: {
+                            '0%': { transform: 'rotate(0deg) translate(0, 0)' },
+                            '30%': { transform: 'rotate(-28deg) translate(-15px, -10px)' },
+                            '70%': { transform: 'rotate(12deg) translate(8px, 12px)' },
+                            '100%': { transform: 'rotate(0deg) translate(0, 0)' }
+                        },
+                        muyuPulse: {
+                            '0%': { transform: 'scale(1)' },
+                            '40%': { transform: 'scale(0.93)' },
+                            '70%': { transform: 'scale(1.04)' },
+                            '100%': { transform: 'scale(1)' }
+                        },
+                        glowPulse: {
+                            '0%, 100%': { opacity: '0.3', transform: 'scale(1)' },
+                            '50%': { opacity: '0.6', transform: 'scale(1.08)' }
+                        }
+                    },
+                    animation: {
+                        'float-up': 'floatUp 1.2s cubic-bezier(0.22, 1, 0.36, 1) forwards',
+                        'mallet-hit': 'malletHit 0.15s ease-in-out',
+                        'muyu-pulse': 'muyuPulse 0.18s ease-out',
+                        'glow-slow': 'glowPulse 4s infinite ease-in-out'
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Serif SC', serif;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+            overflow-x: hidden;
+        }
+        .font-calligraphy {
+            font-family: 'Ma Shan Zheng', cursive;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 17, 21, 0.6);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(223, 178, 96, 0.3);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(223, 178, 96, 0.6);
+        }
+        /* Canvas float container */
+        .float-text {
+            position: absolute;
+            pointer-events: none;
+            font-weight: 700;
+            white-space: nowrap;
+            z-index: 50;
+            text-shadow: 0 0 10px rgba(223, 178, 96, 0.5);
+        }
+        /* Glassmorphism style */
+        .glass-panel {
+            background: rgba(22, 27, 34, 0.65);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        /* Custom range slider */
+        input[type=range] {
+            accent-color: #dfb260;
+        }
+    </style>
+</head>
+<body class="bg-[#0f1115] text-slate-200 min-h-screen flex flex-col justify-between relative selection:bg-amber-500/30">
+
+    <!-- Subtle Background Elements & Particle Layer -->
+    <div class="fixed inset-0 pointer-events-none overflow-hidden z-0">
+        <div id="ambientGlow" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-amber-600/15 rounded-full blur-[120px] animate-glow-slow transition-all duration-700"></div>
+        <div class="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(15,17,21,0.85)_100%)]"></div>
+        <canvas id="particleCanvas" class="w-full h-full opacity-40"></canvas>
+    </div>
+
+    <!-- Header Navigation -->
+    <header class="relative z-10 w-full px-6 py-4 flex justify-between items-center border-b border-white/5 glass-panel">
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-700/40 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-lg shadow-amber-950/40">
+                <i class="fa-solid font-bold text-lg">📿</i>
+            </div>
+            <div>
+                <h1 class="font-calligraphy text-2xl text-amber-300 tracking-wider">赛里木鱼</h1>
+                <p class="text-[10px] text-slate-400 tracking-widest uppercase">Cyber Temple Meditation</p>
+            </div>
+        </div>
+
+        <!-- Controls / Actions Header -->
+        <div class="flex items-center space-x-2 sm:space-x-4">
+          
+            <button id="audioMuteBtn" class="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 hover:text-amber-300 transition-all text-sm" title="音量控制">
+                <i id="audioIcon" class="fa-solid fa-volume-high text-amber-400"></i>
+            </button>
+            <button id="certOpenBtn" class="p-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 transition-all text-sm flex items-center gap-1.5">
+                <i class="fa-solid fa-award"></i>
+                <span class="hidden sm:inline text-xs font-medium">功德证书</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Interactive Area -->
+    <main class="relative z-10 flex-1 flex flex-col lg:flex-row items-center justify-center p-4 md:p-8 gap-8 max-w-7xl mx-auto w-full">
+        
+        <!-- Left / Center: Woodfish Interactive Stage -->
+        <div class="flex-1 flex flex-col items-center justify-center w-full relative min-h-[420px]">
+            
+            <!-- Floating Text Area Overlay -->
+            <div id="floatContainer" class="absolute inset-0 pointer-events-none z-30"></div>
+
+            <!-- Merit Stats Banner -->
+            <div class="text-center mb-6 space-y-2">
+                <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs tracking-wider">
+                    <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+                    <span id="userTitle">功德初显 · 一念清净</span>
+                </div>
+                <div class="flex items-baseline justify-center gap-2">
+                    <span class="text-slate-400 text-sm">当前功德:</span>
+                    <span id="meritCount" class="text-4xl sm:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-amber-400 to-amber-100 font-mono tracking-tight">0</span>
+                </div>
+                <div class="flex items-center justify-center gap-4 text-xs text-slate-400 font-mono pt-1">
+                    <span>今日敲击: <strong id="todayCount" class="text-slate-200">0</strong></span>
+                    <span class="text-slate-600">|</span>
+                    <span>敲击速率: <strong id="cpmCount" class="text-slate-200">0</strong> CPM</span>
+                </div>
+            </div>
+
+            <!-- Woodfish SVG & Mallet Interactive Component -->
+            <div id="muyuArea" class="relative cursor-pointer group select-none my-auto p-8 rounded-3xl transition-transform active:scale-95 duration-75">
+                
+                <!-- Mallet (Stick) SVG -->
+                <div id="malletWrapper" class="absolute -top-6 -right-4 sm:-top-10 sm:right-2 w-24 h-24 sm:w-32 sm:h-32 z-20 pointer-events-none origin-bottom-left transition-transform">
+                    <svg viewBox="0 0 100 100" class="w-full h-full drop-shadow-2xl">
+                        <!-- Stick -->
+                        <path d="M20 80 L75 25" stroke="#5c3818" stroke-width="7" stroke-linecap="round"/>
+                        <path d="M20 80 L75 25" stroke="#8c532b" stroke-width="4" stroke-linecap="round"/>
+                        <!-- Head -->
+                        <ellipse cx="78" cy="22" rx="14" ry="10" transform="rotate(-30 78 22)" fill="#3d230f" stroke="#8c532b" stroke-width="2"/>
+                        <ellipse cx="76" cy="20" rx="12" ry="8" transform="rotate(-30 76 20)" fill="#6e3f1c"/>
+                    </svg>
+                </div>
+
+                <!-- Woodfish Main Body SVG -->
+                <div id="muyuBody" class="w-56 h-56 sm:w-72 sm:h-72 transition-all duration-150 relative">
+                    <svg id="muyuSvg" viewBox="0 0 200 200" class="w-full h-full filter drop-shadow-[0_20px_35px_rgba(0,0,0,0.7)]">
+                        <defs>
+                            <!-- Classic Wood Gradient -->
+                            <radialGradient id="woodGrad" cx="35%" cy="35%" r="65%">
+                                <stop offset="0%" stop-color="#ab6b38"/>
+                                <stop offset="50%" stop-color="#73411b"/>
+                                <stop offset="100%" stop-color="#3b1f0a"/>
+                            </radialGradient>
+                            
+                            <!-- Gold Gradient -->
+                            <radialGradient id="goldGrad" cx="35%" cy="35%" r="65%">
+                                <stop offset="0%" stop-color="#ffe89c"/>
+                                <stop offset="40%" stop-color="#dfb260"/>
+                                <stop offset="100%" stop-color="#7a5510"/>
+                            </radialGradient>
+
+                            <!-- Cyber Neon Gradient -->
+                            <radialGradient id="cyberGrad" cx="35%" cy="35%" r="65%">
+                                <stop offset="0%" stop-color="#80ffff"/>
+                                <stop offset="50%" stop-color="#0088aa"/>
+                                <stop offset="100%" stop-color="#002233"/>
+                            </radialGradient>
+
+                            <!-- Pink Cat Gradient -->
+                            <radialGradient id="pinkGrad" cx="35%" cy="35%" r="65%">
+                                <stop offset="0%" stop-color="#ffc0cb"/>
+                                <stop offset="50%" stop-color="#ff69b4"/>
+                                <stop offset="100%" stop-color="#8b008b"/>
+                            </radialGradient>
+
+                            <!-- Inner Shadow Overlay -->
+                            <radialGradient id="innerShade" cx="50%" cy="50%" r="50%">
+                                <stop offset="70%" stop-color="#000000" stop-opacity="0"/>
+                                <stop offset="100%" stop-color="#000000" stop-opacity="0.6"/>
+                            </radialGradient>
+                        </defs>
+
+                        <!-- Outer Glow Layer -->
+                        <path id="muyuGlow" d="M 100 25 C 145 25 180 60 180 105 C 180 150 145 180 100 180 C 55 180 20 150 20 105 C 20 60 55 25 100 25 Z" fill="none" stroke="#dfb260" stroke-width="0" class="transition-all duration-300"/>
+
+                        <!-- Main Woodfish Shape -->
+                        <path id="muyuBase" d="M 100 25 C 150 25 182 62 180 108 C 178 152 142 180 100 180 C 58 180 22 152 20 108 C 18 62 50 25 100 25 Z" 
+                              fill="url(#woodGrad)" stroke="#261205" stroke-width="4"/>
+                        <path d="M 100 25 C 150 25 182 62 180 108 C 178 152 142 180 100 180 C 58 180 22 152 20 108 C 18 62 50 25 100 25 Z" 
+                              fill="url(#innerShade)"/>
+
+                        <!-- Woodfish Mouth Groove (Fish Mouth Cavity) -->
+                        <path d="M 45 115 C 75 135 125 135 155 115 C 140 122 110 126 100 126 C 90 126 60 122 45 115 Z" fill="#140a04" id="muyuMouth"/>
+
+                        <!-- Central Sound Eye / Carving pattern -->
+                        <circle cx="100" cy="80" r="16" fill="#1e0e05" id="muyuEyeOuter" stroke="#42220c" stroke-width="2"/>
+                        <circle cx="100" cy="80" r="8" fill="#361a09" id="muyuEyeInner"/>
+
+                        <!-- Scale / Carving Line Accents -->
+                        <path d="M 50 85 Q 35 100 45 120" stroke="rgba(255,255,255,0.15)" stroke-width="3" stroke-linecap="round" fill="none"/>
+                        <path d="M 150 85 Q 165 100 155 120" stroke="rgba(0,0,0,0.3)" stroke-width="3" stroke-linecap="round" fill="none"/>
+                        
+                        <!-- Top Ridge / Hanger Ornament -->
+                        <path d="M 85 27 C 85 18 115 18 115 27 Z" fill="#2d1708" id="muyuTop"/>
+
+                        <!-- Cute Paw/Cat Ear Accent (Hidden by default, used in Pink Cat theme) -->
+                        <g id="catAccents" class="hidden">
+                            <polygon points="40,35 20,5 60,25" fill="#ff69b4"/>
+                            <polygon points="160,35 180,5 140,25" fill="#ff69b4"/>
+                        </g>
+                    </svg>
+                </div>
+            </div>
+
+            <!-- Quick Hint -->
+            <p class="text-xs text-slate-500 mt-4 flex items-center gap-2">
+                <span class="px-1.5 py-0.5 rounded bg-white/10 text-slate-300 font-mono text-[10px]">SPACE</span>
+                <span class="px-1.5 py-0.5 rounded bg-white/10 text-slate-300 font-mono text-[10px]">ENTER</span>
+                <span>或点击木鱼皆可敲击</span>
+            </p>
+        </div>
+
+        <!-- Right Side: Control Dashboard & Customization -->
+        <div class="w-full lg:w-80 flex flex-col gap-4">
+            
+            <!-- Panel 1: Auto Mode & Speed -->
+            <div class="glass-panel rounded-2xl p-5 space-y-4">
+                <div class="flex items-center justify-between border-b border-white/5 pb-3">
+                    <div class="flex items-center gap-2.5">
+                        <i class="fa-solid fa-robot text-amber-400"></i>
+                        <h2 class="text-sm font-semibold text-slate-200">自动挂机 (功德机)</h2>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="autoToggle" class="sr-only peer">
+                        <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                    </label>
+                </div>
+
+                <div class="space-y-2">
+                    <div class="flex justify-between text-xs text-slate-400">
+                        <span>敲击间隔</span>
+                        <span id="speedValue" class="text-amber-300 font-mono">1.0 秒/次</span>
+                    </div>
+                    <input type="range" id="speedSlider" min="0.1" max="2.0" step="0.1" value="1.0" class="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer">
+                </div>
+            </div>
+
+            <!-- Panel 2: Skin Selection -->
+            <div class="glass-panel rounded-2xl p-5 space-y-3">
+                <div class="flex items-center gap-2.5 border-b border-white/5 pb-2">
+                    <i class="fa-solid fa-palette text-amber-400"></i>
+                    <h2 class="text-sm font-semibold text-slate-200">木鱼皮肤切换</h2>
+                </div>
+                <div class="grid grid-cols-2 gap-2 pt-1" id="skinGrid">
+                    <button data-skin="wood" class="skin-btn p-2.5 rounded-xl bg-amber-950/40 border-2 border-amber-500/80 text-xs font-medium text-amber-200 flex items-center gap-2 transition-all">
+                        <span class="w-3.5 h-3.5 rounded-full bg-amber-700 inline-block border border-amber-400"></span>
+                        古典檀木
+                    </button>
+                    <button data-skin="gold" class="skin-btn p-2.5 rounded-xl bg-slate-800/40 border border-white/10 hover:border-amber-500/40 text-xs font-medium text-slate-300 flex items-center gap-2 transition-all">
+                        <span class="w-3.5 h-3.5 rounded-full bg-yellow-400 inline-block border border-yellow-200"></span>
+                        纯金极光
+                    </button>
+                    <button data-skin="cyber" class="skin-btn p-2.5 rounded-xl bg-slate-800/40 border border-white/10 hover:border-cyan-500/40 text-xs font-medium text-slate-300 flex items-center gap-2 transition-all">
+                        <span class="w-3.5 h-3.5 rounded-full bg-cyan-400 inline-block border border-cyan-200"></span>
+                        赛博霓虹
+                    </button>
+                    <button data-skin="pink" class="skin-btn p-2.5 rounded-xl bg-slate-800/40 border border-white/10 hover:border-pink-500/40 text-xs font-medium text-slate-300 flex items-center gap-2 transition-all">
+                        <span class="w-3.5 h-3.5 rounded-full bg-pink-400 inline-block border border-pink-200"></span>
+                        粉萌喵喵
+                    </button>
+                </div>
+            </div>
+
+            <!-- Panel 3: Custom Text Settings -->
+            <div class="glass-panel rounded-2xl p-5 space-y-3">
+                <div class="flex items-center justify-between border-b border-white/5 pb-2">
+                    <div class="flex items-center gap-2.5">
+                        <i class="fa-solid fa-[#0f1115] fa-pen-to-square text-amber-400"></i>
+                        <h2 class="text-sm font-semibold text-slate-200">浮动文案配置</h2>
+                    </div>
+                </div>
+                
+                <div class="space-y-2">
+                    <label class="text-[11px] text-slate-400">自定义显示文本 (逗号分隔可随机)</label>
+                    <input type="text" id="customTextInputs" value="功德 +1, 烦恼 -1, 运气 +1, 暴富 +1, 智慧 +1" 
+                           class="w-full bg-slate-900/80 border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-amber-500/60 transition-colors">
+                </div>
+                
+                <div class="flex gap-2 text-xs">
+                    <button id="presetExam" class="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 border border-white/5">期末必过</button>
+                    <button id="presetWork" class="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 border border-white/5">升职加薪</button>
+                    <button id="presetPeace" class="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 border border-white/5">心平气和</button>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Footer Stats / Audio Status -->
+    <footer class="relative z-10 w-full py-3 px-6 text-center text-xs text-slate-500 border-t border-white/5 glass-panel">
+        <p>赛博在线禅堂 · 静心念佛功德箱 &copy; 2026 Cyber Woodfish Zen Studio</p>
+    </footer>
+
+    <!-- Merit Certificate Modal -->
+    <div id="certModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md opacity-0 pointer-events-none transition-opacity duration-300">
+        <div class="relative w-full max-w-md bg-gradient-to-b from-[#1c1a17] to-[#0f0e0c] border border-amber-500/40 rounded-2xl p-6 shadow-2xl text-center space-y-5 transform scale-95 transition-transform duration-300" id="certCard">
+            <!-- Modal Close Button -->
+            <button id="certCloseBtn" class="absolute top-4 right-4 text-slate-400 hover:text-white text-lg">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+
+            <!-- Border Decoration -->
+            <div class="border-2 border-dashed border-amber-500/30 rounded-xl p-5 space-y-4 relative overflow-hidden">
+                <div class="absolute -top-10 -left-10 w-20 h-20 bg-amber-500/10 rounded-full blur-xl pointer-events-none"></div>
+
+                <div class="text-amber-400 text-3xl font-calligraphy">功德无量证明</div>
+                <p class="text-[11px] text-amber-200/60 uppercase tracking-widest">Certificate of Cyber Enlightenment</p>
+
+                <div class="py-4 space-y-2 border-y border-amber-500/20">
+                    <p class="text-xs text-slate-300">兹证明善信在赛博禅堂虔诚敲击木鱼</p>
+                    <div class="text-2xl font-bold text-amber-300 font-mono my-1" id="certMeritVal">0</div>
+                    <p class="text-xs text-slate-400">获得禅修称号：<span id="certTitleVal" class="text-amber-200 font-semibold">--</span></p>
+                </div>
+
+                <p class="text-[11px] text-slate-400 italic">“心如止水，波澜不惊。积小善成大德，诸邪避退。”</p>
+
+                <div class="pt-2 flex justify-between items-center text-[10px] text-slate-500">
+                    <span id="certDateVal">2026-11-01</span>
+                    <span>印章：赛博禅堂印</span>
+                </div>
+            </div>
+
+            <div class="flex gap-3">
+                <button id="copyCertBtn" class="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-colors flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-copy"></i> 复制功德战报
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Message Toast -->
+    <div id="toast" class="fixed bottom-10 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-xl bg-amber-500 text-slate-950 text-xs font-bold shadow-xl opacity-0 transition-opacity pointer-events-none">
+        已复制到剪贴板
+    </div>
+
+    <!-- Application Script -->
+    <script>
+        // --- Web Audio API Synth (Realistic Woodfish Sound Synthesis) ---
+        class WoodfishAudioEngine {
+            constructor() {
+                this.ctx = null;
+                this.isMuted = false;
+                this.bgmNode = null;
+                this.bgmGain = null;
+                this.isBgmPlaying = false;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioCtx();
+                }
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            // Synthesize Woodfish Impact Sound dynamically
+            playHitSound(skin = 'wood') {
+                if (this.isMuted) return;
+                this.init();
+
+                const now = this.ctx.currentTime;
+
+                // Base frequencies and parameters depending on skin
+                let baseFreq = 280;
+                let decay = 0.22;
+                let pitchDrop = 120;
+
+                if (skin === 'gold') {
+                    baseFreq = 420;
+                    decay = 0.35;
+                    pitchDrop = 180;
+                } else if (skin === 'cyber') {
+                    baseFreq = 180;
+                    decay = 0.28;
+                    pitchDrop = 90;
+                } else if (skin === 'pink') {
+                    baseFreq = 340;
+                    decay = 0.18;
+                    pitchDrop = 150;
+                }
+
+                // Primary Oscillator (Hollow Pitch Body)
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(baseFreq, now);
+                osc.frequency.exponentialRampToValueAtTime(baseFreq - pitchDrop, now + decay);
+
+                // Gain Envelope for snappy impact & natural wooden decay
+                gain.gain.setValueAtTime(0.001, now);
+                gain.gain.linearRampToValueAtTime(0.8, now + 0.004);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + decay);
+
+                // Secondary Metallic/Wooden Resonance Overtones
+                const overtone = this.ctx.createOscillator();
+                const overtoneGain = this.ctx.createGain();
+                overtone.type = skin === 'gold' ? 'triangle' : 'sine';
+                overtone.frequency.setValueAtTime(baseFreq * 2.1, now);
+                overtoneGain.gain.setValueAtTime(0.25, now);
+                overtoneGain.gain.exponentialRampToValueAtTime(0.001, now + (decay * 0.6));
+
+                // Noise burst for initial mallet knock hit
+                const bufferSize = this.ctx.sampleRate * 0.015; // 15ms noise
+                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = Math.random() * 2 - 1;
+                }
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = buffer;
+                const noiseGain = this.ctx.createGain();
+                noiseGain.gain.setValueAtTime(0.3, now);
+                noiseGain.gain.exponentialRampToValueAtTime(0.01, now + 0.015);
+
+                // Connect audio nodes
+                osc.connect(gain);
+                overtone.connect(overtoneGain);
+                overtoneGain.connect(gain);
+                noise.connect(noiseGain);
+                noiseGain.connect(gain);
+
+                gain.connect(this.ctx.destination);
+
+                // Trigger sources
+                osc.start(now);
+                overtone.start(now);
+                noise.start(now);
+
+                osc.stop(now + decay + 0.05);
+                overtone.stop(now + decay + 0.05);
+                noise.stop(now + 0.02);
+            }
+
+            // Synthesize Soft Rain Ambient Noise (Web Audio Noise Generator)
+            toggleRainBGM() {
+                this.init();
+                if (this.isBgmPlaying) {
+                    if (this.bgmGain) {
+                        this.bgmGain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 1);
+                        setTimeout(() => {
+                            if (this.bgmNode) this.bgmNode.stop();
+                            this.isBgmPlaying = false;
+                        }, 1000);
+                    }
+                    return false;
+                } else {
+                    const bufferSize = 2 * this.ctx.sampleRate;
+                    const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                    const output = noiseBuffer.getChannelData(0);
+                    let lastOut = 0.0;
+                    // Pink noise generator for gentle rain effect
+                    for (let i = 0; i < bufferSize; i++) {
+                        const white = Math.random() * 2 - 1;
+                        output[i] = (lastOut + (0.02 * white)) / 1.02;
+                        lastOut = output[i];
+                        output[i] *= 0.11;
+                    }
+
+                    this.bgmNode = this.ctx.createBufferSource();
+                    this.bgmNode.buffer = noiseBuffer;
+                    this.bgmNode.loop = true;
+
+                    // Lowpass filter to muffle rain
+                    const filter = this.ctx.createBiquadFilter();
+                    filter.type = 'lowpass';
+                    filter.frequency.setValueAtTime(800, this.ctx.currentTime);
+
+                    this.bgmGain = this.ctx.createGain();
+                    this.bgmGain.gain.setValueAtTime(0, this.ctx.currentTime);
+                    this.bgmGain.gain.linearRampToValueAtTime(0.12, this.ctx.currentTime + 1.5);
+
+                    this.bgmNode.connect(filter);
+                    filter.connect(this.bgmGain);
+                    this.bgmGain.connect(this.ctx.destination);
+
+                    this.bgmNode.start();
+                    this.isBgmPlaying = true;
+                    return true;
+                }
+            }
+        }
+
+        // --- Application State & Logic ---
+        const soundEngine = new WoodfishAudioEngine();
+
+        let state = {
+            merit: parseInt(localStorage.getItem('cyber_muyu_merit') || '0'),
+            todayCount: parseInt(localStorage.getItem('cyber_muyu_today') || '0'),
+            lastDate: localStorage.getItem('cyber_muyu_date') || '',
+            skin: 'wood',
+            autoActive: false,
+            autoIntervalMs: 1000,
+            autoTimer: null,
+            tapTimestamps: []
+        };
+
+        // Titles map based on merit count
+        const TITLES = [
+            { min: 0, title: "功德初显 · 一念清净" },
+            { min: 50, title: "初入禅门 · 渐入佳境" },
+            { min: 200, title: "心无旁骛 · 慧根具足" },
+            { min: 500, title: "功德无量 · 福报满满" },
+            { min: 1200, title: "赛博大能 · 烦恼皆空" },
+            { min: 3000, title: "立地成佛 · 万法归一" },
+            { min: 10000, title: "赛博真仙 · 破空升仙" }
+        ];
+
+        // Skin Definitions
+        const SKINS = {
+            wood: {
+                fill: 'url(#woodGrad)',
+                glow: '#dfb260',
+                stroke: '#261205',
+                ambient: 'rgba(223, 178, 96, 0.15)',
+                mouth: '#140a04'
+            },
+            gold: {
+                fill: 'url(#goldGrad)',
+                glow: '#facc15',
+                stroke: '#583c06',
+                ambient: 'rgba(250, 204, 21, 0.25)',
+                mouth: '#382200'
+            },
+            cyber: {
+                fill: 'url(#cyberGrad)',
+                glow: '#22d3ee',
+                stroke: '#083344',
+                ambient: 'rgba(34, 211, 238, 0.25)',
+                mouth: '#021824'
+            },
+            pink: {
+                fill: 'url(#pinkGrad)',
+                glow: '#f472b6',
+                stroke: '#701a75',
+                ambient: 'rgba(244, 114, 182, 0.25)',
+                mouth: '#3b0736'
+            }
+        };
+
+        // DOM Elements
+        const meritCountEl = document.getElementById('meritCount');
+        const todayCountEl = document.getElementById('todayCount');
+        const cpmCountEl = document.getElementById('cpmCount');
+        const userTitleEl = document.getElementById('userTitle');
+        const muyuArea = document.getElementById('muyuArea');
+        const muyuBody = document.getElementById('muyuBody');
+        const malletWrapper = document.getElementById('malletWrapper');
+        const floatContainer = document.getElementById('floatContainer');
+        const autoToggle = document.getElementById('autoToggle');
+        const speedSlider = document.getElementById('speedSlider');
+        const speedValue = document.getElementById('speedValue');
+        const customTextInputs = document.getElementById('customTextInputs');
+        const bgmToggleBtn = document.getElementById('bgmToggleBtn');
+        const audioMuteBtn = document.getElementById('audioMuteBtn');
+        const audioIcon = document.getElementById('audioIcon');
+        const ambientGlow = document.getElementById('ambientGlow');
+        const catAccents = document.getElementById('catAccents');
+
+        // Check Date Reset for Today Count
+        const currentDateStr = new Date().toISOString().slice(0, 10);
+        if (state.lastDate !== currentDateStr) {
+            state.todayCount = 0;
+            state.lastDate = currentDateStr;
+            localStorage.setItem('cyber_muyu_date', currentDateStr);
+            localStorage.setItem('cyber_muyu_today', '0');
+        }
+
+        // Save State
+        function saveState() {
+            localStorage.setItem('cyber_muyu_merit', state.merit.toString());
+            localStorage.setItem('cyber_muyu_today', state.todayCount.toString());
+        }
+
+        // Get Current Title
+        function getTitle(merit) {
+            let matched = TITLES[0].title;
+            for (let t of TITLES) {
+                if (merit >= t.min) matched = t.title;
+            }
+            return matched;
+        }
+
+        // Update UI Text
+        function updateUI() {
+            meritCountEl.textContent = state.merit.toLocaleString();
+            todayCountEl.textContent = state.todayCount.toLocaleString();
+            userTitleEl.textContent = getTitle(state.merit);
+        }
+
+        // Calculate CPM (Clicks Per Minute)
+        function updateCPM() {
+            const now = Date.now();
+            state.tapTimestamps = state.tapTimestamps.filter(t => now - t < 60000);
+            cpmCountEl.textContent = state.tapTimestamps.length;
+        }
+
+        // Floating Text Spawn Effect
+        function spawnFloatText(e) {
+            const rawTexts = customTextInputs.value.trim();
+            const textList = rawTexts ? rawTexts.split(/[,，]/).map(s => s.trim()).filter(Boolean) : ['功德 +1'];
+            const text = textList[Math.floor(Math.random() * textList.length)] || '功德 +1';
+
+            const el = document.createElement('div');
+            el.className = 'float-text font-calligraphy text-2xl sm:text-3xl animate-float-up';
+            el.textContent = text;
+
+            // Pick color based on current skin
+            if (state.skin === 'cyber') el.style.color = '#67e8f9';
+            else if (state.skin === 'pink') el.style.color = '#f472b6';
+            else if (state.skin === 'gold') el.style.color = '#fde047';
+            else el.style.color = '#fef08a';
+
+            // Calculate position
+            const rect = muyuArea.getBoundingClientRect();
+            let x, y;
+
+            if (e && e.clientX) {
+                x = e.clientX - rect.left - 30;
+                y = e.clientY - rect.top - 20;
+            } else {
+                // Default position above woodfish center
+                x = rect.width / 2 - 40 + (Math.random() * 40 - 20);
+                y = rect.height / 3 + (Math.random() * 20 - 10);
+            }
+
+            el.style.left = `${x}px`;
+            el.style.top = `${y}px`;
+
+            floatContainer.appendChild(el);
+
+            setTimeout(() => {
+                if (el.parentNode) el.parentNode.removeChild(el);
+            }, 1200);
+        }
+
+        // Core Woodfish Knock Trigger
+        function knockWoodfish(e = null) {
+            // Audio Play
+            soundEngine.playHitSound(state.skin);
+
+            // Update stats
+            state.merit += 1;
+            state.todayCount += 1;
+            state.tapTimestamps.push(Date.now());
+            saveState();
+            updateUI();
+            updateCPM();
+
+            // Trigger Visual Animations
+            muyuBody.classList.remove('animate-muyu-pulse');
+            malletWrapper.classList.remove('animate-mallet-hit');
+
+            // Force Reflow
+            void muyuBody.offsetWidth;
+
+            muyuBody.classList.add('animate-muyu-pulse');
+            malletWrapper.classList.add('animate-mallet-hit');
+
+            // Spawn floating text
+            spawnFloatText(e);
+        }
+
+        // Skin Switcher Logic
+        function applySkin(skinName) {
+            state.skin = skinName;
+            const skinConf = SKINS[skinName];
+
+            document.getElementById('muyuBase').setAttribute('fill', skinConf.fill);
+            document.getElementById('muyuBase').setAttribute('stroke', skinConf.stroke);
+            document.getElementById('muyuMouth').setAttribute('fill', skinConf.mouth);
+            ambientGlow.style.backgroundColor = skinConf.ambient;
+
+            if (skinName === 'pink') {
+                catAccents.classList.remove('hidden');
+            } else {
+                catAccents.classList.add('hidden');
+            }
+
+            // Update button styles
+            document.querySelectorAll('.skin-btn').forEach(btn => {
+                if (btn.dataset.skin === skinName) {
+                    btn.classList.add('border-amber-500', 'bg-amber-500/20');
+                    btn.classList.remove('border-white/10');
+                } else {
+                    btn.classList.remove('border-amber-500', 'bg-amber-500/20');
+                    btn.classList.add('border-white/10');
+                }
+            });
+        }
+
+        // Auto Tap Mode Manager
+        function toggleAutoMode(active) {
+            state.autoActive = active;
+            if (state.autoTimer) clearInterval(state.autoTimer);
+
+            if (active) {
+                state.autoTimer = setInterval(() => {
+                    knockWoodfish();
+                }, state.autoIntervalMs);
+            }
+        }
+
+        // Preset Text Helpers
+        document.getElementById('presetExam').addEventListener('click', () => {
+            customTextInputs.value = "期末必过 +1, 逢考必过 +1, 绩点 4.0 +1";
+        });
+        document.getElementById('presetWork').addEventListener('click', () => {
+            customTextInputs.value = "升职加薪 +1, 拒绝加班 +1, 奖金翻倍 +1";
+        });
+        document.getElementById('presetPeace').addEventListener('click', () => {
+            customTextInputs.value = "心平气和 +1, 烦恼 -1, 焦虑 -1, 喜乐 +1";
+        });
+
+        // Event Listeners
+        muyuArea.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            knockWoodfish(e);
+        });
+
+        // Keyboard Support
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' || e.code === 'Enter') {
+                // Ignore if user is typing in custom input
+                if (document.activeElement === customTextInputs) return;
+                e.preventDefault();
+                knockWoodfish();
+            }
+        });
+
+        // Skin Buttons
+        document.querySelectorAll('.skin-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                applySkin(btn.dataset.skin);
+            });
+        });
+
+        // Auto Toggle
+        autoToggle.addEventListener('change', (e) => {
+            toggleAutoMode(e.target.checked);
+        });
+
+        // Speed Slider
+        speedSlider.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            speedValue.textContent = `${val.toFixed(1)} 秒/次`;
+            state.autoIntervalMs = val * 1000;
+            if (state.autoActive) {
+                toggleAutoMode(true);
+            }
+        });
+
+        // Mute Button
+        audioMuteBtn.addEventListener('click', () => {
+            soundEngine.isMuted = !soundEngine.isMuted;
+            if (soundEngine.isMuted) {
+                audioIcon.className = 'fa-solid fa-volume-xmark text-slate-500';
+            } else {
+                audioIcon.className = 'fa-solid fa-volume-high text-amber-400';
+            }
+        });
+
+        // BGM Rain Sound Toggle
+        bgmToggleBtn.addEventListener('click', () => {
+            const isPlaying = soundEngine.toggleRainBGM();
+            if (isPlaying) {
+                bgmToggleBtn.classList.add('bg-amber-500/20', 'border-amber-500/50');
+            } else {
+                bgmToggleBtn.classList.remove('bg-amber-500/20', 'border-amber-500/50');
+            }
+        });
+
+        // Modal Elements
+        const certModal = document.getElementById('certModal');
+        const certCard = document.getElementById('certCard');
+        const certOpenBtn = document.getElementById('certOpenBtn');
+        const certCloseBtn = document.getElementById('certCloseBtn');
+
+        certOpenBtn.addEventListener('click', () => {
+            document.getElementById('certMeritVal').textContent = state.merit.toLocaleString();
+            document.getElementById('certTitleVal').textContent = getTitle(state.merit);
+            document.getElementById('certDateVal').textContent = new Date().toISOString().slice(0, 10);
+
+            certModal.classList.remove('opacity-0', 'pointer-events-none');
+            certCard.classList.remove('scale-95');
+            certCard.classList.add('scale-100');
+        });
+
+        function closeCertModal() {
+            certModal.classList.add('opacity-0', 'pointer-events-none');
+            certCard.classList.remove('scale-100');
+            certCard.classList.scale = 'scale-95';
+        }
+
+        certCloseBtn.addEventListener('click', closeCertModal);
+        certModal.addEventListener('click', (e) => {
+            if (e.target === certModal) closeCertModal();
+        });
+
+        // Toast Message Helper
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.classList.remove('opacity-0');
+            setTimeout(() => {
+                toast.classList.add('opacity-0');
+            }, 2000);
+        }
+
+        // Copy Certificate Summary
+        document.getElementById('copyCertBtn').addEventListener('click', () => {
+            const summary = `【赛博功德证书】\n累计功德：${state.merit}\n今日敲击：${state.todayCount} 次\n当前境界：${getTitle(state.merit)}\n一起来赛博禅堂积攒功德吧！`;
+            
+            // Clipboard Copy Command
+            const tempInput = document.createElement('textarea');
+            tempInput.value = summary;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempInput);
+
+            showToast("功德战报已复制到剪贴板！");
+        });
+
+        // --- Background Particle Canvas System ---
+        const canvas = document.getElementById('particleCanvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        class Particle {
+            constructor() {
+                this.reset();
+            }
+            reset() {
+                this.x = Math.random() * canvas.width;
+                this.y = canvas.height + Math.random() * 20;
+                this.size = Math.random() * 2 + 0.5;
+                this.speedY = Math.random() * 0.8 + 0.2;
+                this.speedX = Math.random() * 0.4 - 0.2;
+                this.opacity = Math.random() * 0.5 + 0.1;
+            }
+            update() {
+                this.y -= this.speedY;
+                this.x += this.speedX;
+                if (this.y < -10) this.reset();
+            }
+            draw() {
+                ctx.fillStyle = `rgba(223, 178, 96, ${this.opacity})`;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        for (let i = 0; i < 45; i++) {
+            particles.push(new Particle());
+        }
+
+        function animateParticles() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles.forEach(p => {
+                p.update();
+                p.draw();
+            });
+            requestAnimationFrame(animateParticles);
+        }
+
+        // Start Initializations
+        window.onload = () => {
+            updateUI();
+            setInterval(updateCPM, 2000);
+            animateParticles();
+        };
+    </script>
+</body>
+</html>
